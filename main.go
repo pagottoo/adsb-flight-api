@@ -52,8 +52,9 @@ var (
 	// elevação mínima (evita anunciar tráfego decolando, baixo no horizonte).
 	announceMode = getenv("ANNOUNCE_MODE", "auto")
 	windowAz     = getenvFloat("WINDOW_AZIMUTH", 167.0)
-	windowTol    = getenvFloat("WINDOW_TOLERANCE", 18.0)
-	minElevDeg   = getenvFloat("MIN_ELEVATION_DEG", 10.0)
+	windowTol    = getenvFloat("WINDOW_TOLERANCE", 90.0)
+	windowMaxKm  = getenvFloat("WINDOW_MAX_KM", 4.0)      // proximidade: o avião que você vê está perto
+	windowMaxClimb = getenvFloat("WINDOW_MAX_CLIMB", 1000) // ft/min acima disso = decolando -> ignora
 	obsAltM      = getenvFloat("OBSERVER_ALT_M", 850.0)
 )
 
@@ -88,9 +89,10 @@ type Aircraft struct {
 	T       string          `json:"t"`
 	Desc    string          `json:"desc"`
 	AltBaro json.RawMessage `json:"alt_baro"` // int OU a string "ground"
-	Lat     *float64        `json:"lat"`
-	RDst    *float64        `json:"r_dst"`
-	RDir    *float64        `json:"r_dir"`
+	Lat      *float64       `json:"lat"`
+	RDst     *float64       `json:"r_dst"`
+	RDir     *float64       `json:"r_dir"`
+	BaroRate *float64       `json:"baro_rate"` // ft/min; + sobe (decola), - desce (pousa)
 }
 
 func (a *Aircraft) altFeet() (float64, bool) {
@@ -203,10 +205,13 @@ func pickAircraft(list []Aircraft, mode string) *Aircraft {
 	if mode == "window" {
 		var win []*Aircraft
 		for _, a := range cands {
-			if angDiff(a) > windowTol {
+			if windowMaxKm > 0 && *a.RDst > windowMaxKm { // proximidade: o sinal principal
 				continue
 			}
-			if elev, ok := a.elevationDeg(); !ok || elev < minElevDeg {
+			if angDiff(a) > windowTol { // hemisfério à frente (guarda contra o que está atrás)
+				continue
+			}
+			if a.BaroRate != nil && *a.BaroRate > windowMaxClimb { // subindo forte = decolando -> ignora
 				continue
 			}
 			win = append(win, a)

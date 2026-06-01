@@ -16,10 +16,11 @@ services:
       - HA_TTS_VOICE=pt_BR-faber-medium  # voz pt-BR (sem isso o Piper fala com sotaque inglês)
       # Priorização da janela (ajuste sem rebuild — só recriar o container)
       - ANNOUNCE_MODE=auto        # auto = janela e, se vazia, o mais próximo c/ ressalva | window | nearest
-      - WINDOW_AZIMUTH=167        # azimute da varanda (graus)
-      - WINDOW_TOLERANCE=22       # ± graus aceitos ao redor do azimute
-      - MIN_ELEVATION_DEG=8       # elevação mínima (corta tráfego baixo na pista)
-      - OBSERVER_ALT_M=850        # altitude do observador (m), p/ calcular elevação
+      - WINDOW_AZIMUTH=167        # direção da varanda (graus)
+      - WINDOW_TOLERANCE=90       # hemisfério à frente (não cone estreito)
+      - WINDOW_MAX_KM=4           # PROXIMIDADE: o avião que você vê está perto (sinal principal)
+      - WINDOW_MAX_CLIMB=1000     # ft/min: acima disso = decolando -> não conta como "na janela"
+      - OBSERVER_ALT_M=900        # altitude do seu apê (m), p/ calcular elevação no JSON
     healthcheck:
       test: ["CMD", "/flight-api", "-healthcheck"]
       interval: 30s
