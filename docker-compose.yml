@@ -12,7 +12,8 @@ services:
       - HA_URL=http://192.168.0.55:8123
       - HA_MEDIA_PLAYER=media_player.casa_toda
       - HA_TTS_ENTITY=tts.piper   # local, sem rate-limit (google_translate trava após muitas chamadas)
-      - HA_TTS_LANG=              # vazio: Piper usa a voz configurada dele (mandar language dá 500)
+      - HA_TTS_LANG=              # vazio: Piper dá 500 se receber language
+      - HA_TTS_VOICE=pt_BR-faber-medium  # voz pt-BR (sem isso o Piper fala com sotaque inglês)
       # Priorização da janela (ajuste sem rebuild — só recriar o container)
       - ANNOUNCE_MODE=auto        # auto = janela e, se vazia, o mais próximo c/ ressalva | window | nearest
       - WINDOW_AZIMUTH=167        # azimute da varanda (graus)

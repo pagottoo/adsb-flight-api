@@ -44,6 +44,7 @@ var (
 	mediaPlayer = getenv("HA_MEDIA_PLAYER", "media_player.casa_toda")
 	ttsEntity   = getenv("HA_TTS_ENTITY", "tts.google_translate_en_com")
 	ttsLang     = getenv("HA_TTS_LANG", "") // vazio = não envia language (Piper dá 500 se receber)
+	ttsVoice    = getenv("HA_TTS_VOICE", "") // ex.: pt_BR-faber-medium (voz do Piper)
 	triggerBool = getenv("HA_TRIGGER_BOOLEAN", "input_boolean.perguntar_voo")
 	triggerName = getenv("HA_TRIGGER_NAME", "Perguntar Voo")
 
@@ -447,6 +448,9 @@ func speakCurrentFlight() {
 	}
 	if ttsLang != "" { // alguns motores (ex.: Piper) dão 500 se receberem language
 		data["language"] = ttsLang
+	}
+	if ttsVoice != "" {
+		data["options"] = map[string]any{"voice": ttsVoice}
 	}
 	if err := haCall("tts", "speak", data); err != nil {
 		log.Printf("[announcer] tts erro: %v", err)
