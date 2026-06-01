@@ -1,0 +1,8 @@
+# segredos — nunca commitar
+.env
+
+# binário compilado
+/flight-api
+
+# lixo de OS/editor
+.DS_Store

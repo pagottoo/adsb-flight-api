@@ -1,0 +1,27 @@
+services:
+  flight-api:
+    # imagem publicada no Docker Hub; sobrescreva com FLIGHT_API_IMAGE se quiser
+    image: ${FLIGHT_API_IMAGE:-pagottoo/adsb-flight-api:latest}
+    container_name: flight-api
+    # host networking: lê o tar1090 em localhost:8080 e publica a 8890 no IP do Pi
+    network_mode: host
+    restart: unless-stopped
+    env_file:
+      - .env          # injeta HA_TOKEN
+    environment:
+      - HA_URL=http://192.168.0.55:8123
+      - HA_MEDIA_PLAYER=media_player.casa_toda
+      - HA_TTS_ENTITY=tts.google_translate_en_com
+      - HA_TTS_LANG=pt
+      # Priorização da janela (ajuste sem rebuild — só recriar o container)
+      - ANNOUNCE_MODE=window      # window = só a janela | nearest = mais próximo no céu
+      - WINDOW_AZIMUTH=167        # azimute da varanda (graus)
+      - WINDOW_TOLERANCE=18       # ± graus aceitos ao redor do azimute
+      - MIN_ELEVATION_DEG=10      # elevação mínima (corta tráfego baixo na pista)
+      - OBSERVER_ALT_M=850        # altitude do observador (m), p/ calcular elevação
+    healthcheck:
+      test: ["CMD", "/flight-api", "-healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s

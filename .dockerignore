@@ -1,0 +1,8 @@
+.git
+.gitignore
+.env
+.env.example
+*.py
+README.md
+docker-compose.yml
+flight-api
