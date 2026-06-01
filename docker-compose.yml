@@ -14,10 +14,10 @@ services:
       - HA_TTS_ENTITY=tts.google_translate_en_com
       - HA_TTS_LANG=pt
       # Priorização da janela (ajuste sem rebuild — só recriar o container)
-      - ANNOUNCE_MODE=window      # window = só a janela | nearest = mais próximo no céu
+      - ANNOUNCE_MODE=auto        # auto = janela e, se vazia, o mais próximo c/ ressalva | window | nearest
       - WINDOW_AZIMUTH=167        # azimute da varanda (graus)
-      - WINDOW_TOLERANCE=18       # ± graus aceitos ao redor do azimute
-      - MIN_ELEVATION_DEG=10      # elevação mínima (corta tráfego baixo na pista)
+      - WINDOW_TOLERANCE=22       # ± graus aceitos ao redor do azimute
+      - MIN_ELEVATION_DEG=8       # elevação mínima (corta tráfego baixo na pista)
       - OBSERVER_ALT_M=850        # altitude do observador (m), p/ calcular elevação
     healthcheck:
       test: ["CMD", "/flight-api", "-healthcheck"]

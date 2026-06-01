@@ -49,7 +49,7 @@ var (
 
 	// Priorização "janela": só aviões perto do azimute da varanda e acima de uma
 	// elevação mínima (evita anunciar tráfego decolando, baixo no horizonte).
-	announceMode = getenv("ANNOUNCE_MODE", "window")
+	announceMode = getenv("ANNOUNCE_MODE", "auto")
 	windowAz     = getenvFloat("WINDOW_AZIMUTH", 167.0)
 	windowTol    = getenvFloat("WINDOW_TOLERANCE", 18.0)
 	minElevDeg   = getenvFloat("MIN_ELEVATION_DEG", 10.0)
@@ -149,6 +149,8 @@ type Answer struct {
 	BearingDeg   *float64 `json:"bearing_deg,omitempty"`
 	AltitudeM    *int     `json:"altitude_m,omitempty"`
 	ElevationDeg *float64 `json:"elevation_deg,omitempty"`
+	InWindow     bool     `json:"in_window,omitempty"`
+	descr        string   // frase descritiva (uso interno p/ fallback; não serializado)
 }
 
 // ── HTTP helpers ─────────────────────────────────────────────────────────────
@@ -302,7 +304,58 @@ func fmtDist(d float64) string {
 	return fmt.Sprintf("%.0f", d)
 }
 
+// descriptive monta a frase da aeronave (sem o "Esse é " na frente), reutilizável.
+func descriptive(callsign, desc string, route routeInfo, distKm *float64, altM *int) string {
+	var parts []string
+	switch {
+	case route.Airline != "" && callsign != "":
+		parts = append(parts, "um voo da "+route.Airline+", um "+desc)
+	case callsign != "":
+		parts = append(parts, "o voo "+callsign+", um "+desc)
+	default:
+		parts = append(parts, "um "+desc)
+	}
+	if route.Origin != "" && route.Destination != "" {
+		parts = append(parts, fmt.Sprintf("de %s para %s", route.Origin, route.Destination))
+	}
+	if distKm != nil {
+		parts = append(parts, "a "+fmtDist(*distKm)+" quilômetros")
+	}
+	if altM != nil {
+		parts = append(parts, fmt.Sprintf("e %d metros de altitude", *altM))
+	}
+	return strings.Join(parts, ", ")
+}
+
+// bearingCardinal converte azimute (graus) em ponto cardeal em PT.
+func bearingCardinal(deg float64) string {
+	dirs := []string{"Norte", "Nordeste", "Leste", "Sudeste", "Sul", "Sudoeste", "Oeste", "Noroeste"}
+	i := int(math.Mod(deg/45.0+0.5, 8))
+	if i < 0 {
+		i += 8
+	}
+	return dirs[i]
+}
+
 func buildAnswer(mode string) Answer {
+	// auto: prioriza a janela; se vazia, cai pro mais próximo com ressalva + direção.
+	if mode == "auto" {
+		if ans := buildAnswer("window"); ans.Found {
+			return ans
+		}
+		near := buildAnswer("nearest")
+		if !near.Found {
+			return near
+		}
+		near.InWindow = false
+		card := ""
+		if near.BearingDeg != nil {
+			card = ", a " + bearingCardinal(*near.BearingDeg)
+		}
+		near.Speech = "Não tem nenhum avião cruzando a sua janela agora. O mais próximo é " + near.descr + card + "."
+		return near
+	}
+
 	var feed struct {
 		Aircraft []Aircraft `json:"aircraft"`
 	}
@@ -334,27 +387,13 @@ func buildAnswer(mode string) Answer {
 		route = lookupRoute(callsign)
 	}
 
-	parts := []string{}
-	switch {
-	case route.Airline != "" && callsign != "":
-		parts = append(parts, "Esse é um voo da "+route.Airline)
-	case callsign != "":
-		parts = append(parts, "Esse é o voo "+callsign)
-	default:
-		parts = append(parts, "Tem um avião passando")
-	}
-	parts = append(parts, "um "+desc)
-	if route.Origin != "" && route.Destination != "" {
-		parts = append(parts, fmt.Sprintf("de %s para %s", route.Origin, route.Destination))
-	}
-
 	ans := Answer{Found: true, Callsign: callsign, Registration: a.R, Type: a.T, TypeDesc: desc,
 		Airline: route.Airline, Origin: route.Origin, Destination: route.Destination}
-
+	if mode == "window" {
+		ans.InWindow = true
+	}
 	if a.RDst != nil {
-		d := *a.RDst
-		parts = append(parts, "a "+fmtDist(d)+" quilômetros")
-		dr := math.Round(d*10) / 10
+		dr := math.Round(*a.RDst*10) / 10
 		ans.DistanceKm = &dr
 	}
 	if a.RDir != nil {
@@ -363,7 +402,6 @@ func buildAnswer(mode string) Answer {
 	}
 	if f, ok := a.altFeet(); ok {
 		altM := int(math.Round(f*ftToM/50)) * 50
-		parts = append(parts, fmt.Sprintf("e %d metros de altitude", altM))
 		ans.AltitudeM = &altM
 	}
 	if elev, ok := a.elevationDeg(); ok {
@@ -371,7 +409,8 @@ func buildAnswer(mode string) Answer {
 		ans.ElevationDeg = &e
 	}
 
-	ans.Speech = strings.Join(parts, ", ") + "."
+	ans.descr = descriptive(callsign, desc, route, ans.DistanceKm, ans.AltitudeM)
+	ans.Speech = "Esse é " + ans.descr + "."
 	return ans
 }
 
