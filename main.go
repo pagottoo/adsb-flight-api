@@ -43,7 +43,7 @@ var (
 	haToken     = getenv("HA_TOKEN", "")
 	mediaPlayer = getenv("HA_MEDIA_PLAYER", "media_player.casa_toda")
 	ttsEntity   = getenv("HA_TTS_ENTITY", "tts.google_translate_en_com")
-	ttsLang     = getenv("HA_TTS_LANG", "pt")
+	ttsLang     = getenv("HA_TTS_LANG", "") // vazio = não envia language (Piper dá 500 se receber)
 	triggerBool = getenv("HA_TRIGGER_BOOLEAN", "input_boolean.perguntar_voo")
 	triggerName = getenv("HA_TRIGGER_NAME", "Perguntar Voo")
 
