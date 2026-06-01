@@ -440,12 +440,15 @@ func speakCurrentFlight() {
 		msg = "Não consegui identificar o voo."
 	}
 	log.Printf("[announcer] falando: %s", msg)
-	if err := haCall("tts", "speak", map[string]any{
+	data := map[string]any{
 		"entity_id":              ttsEntity,
 		"media_player_entity_id": mediaPlayer,
 		"message":                msg,
-		"language":               ttsLang,
-	}); err != nil {
+	}
+	if ttsLang != "" { // alguns motores (ex.: Piper) dão 500 se receberem language
+		data["language"] = ttsLang
+	}
+	if err := haCall("tts", "speak", data); err != nil {
 		log.Printf("[announcer] tts erro: %v", err)
 	}
 }
