@@ -11,7 +11,10 @@ Faz parte do projeto de monitoramento de aeronaves perto do GRU (São Paulo).
 1. **Servidor HTTP** (porta `8890`):
    - `GET /overhead` — aeronave mais próxima no ar (JSON + frase `speech` em PT-BR).
    - `GET /overhead?mode=window` — prioriza quem cruza o azimute da janela (167°).
-   - `GET /healthz`
+   - `GET /healthz` — liveness: o processo está no ar (sempre 200).
+   - `GET /ready` — readiness: **200** só quando o WebSocket com o HA está
+     conectado; **503** caso contrário. Bom p/ monitorar a desconexão silenciosa
+     do announcer (uptime-kuma etc.) — o `/healthz` não enxerga isso.
 2. **Announcer** (opcional, se `HA_TOKEN` setado): abre um WebSocket com o Home
    Assistant, cria o gatilho `input_boolean.perguntar_voo`, escuta, e quando ele
    liga (via rotina do Google Home) calcula o voo e manda o HA **falar** a

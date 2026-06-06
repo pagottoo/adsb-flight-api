@@ -1,6 +1,7 @@
 // flight-api — micro-serviço que responde "qual avião está no céu agora".
 //
-//  1. Servidor HTTP (porta 8890): /overhead e /healthz (úteis para testes).
+//  1. Servidor HTTP (porta 8890): /overhead, /healthz (liveness) e /ready
+//     (readiness: 200 só quando o WebSocket com o HA está conectado).
 //  2. Announcer opcional: se HA_TOKEN estiver setado, abre um WebSocket com o
 //     Home Assistant, cria o gatilho input_boolean.perguntar_voo, escuta, e
 //     quando ele liga (via rotina do Google Home) calcula o voo e manda o HA
@@ -21,6 +22,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode"
 
@@ -155,6 +157,11 @@ type Answer struct {
 	InWindow     bool     `json:"in_window,omitempty"`
 	descr        string   // frase descritiva (uso interno p/ fallback; não serializado)
 }
+
+// wsConnected reflete se o announcer está com o WebSocket do HA autenticado e
+// inscrito no gatilho. É a fonte da verdade do /ready (readiness). Atualizado só
+// pelo announcer; lido pelo handler HTTP — atomic evita corrida entre as goroutines.
+var wsConnected atomic.Bool
 
 // ── HTTP helpers ─────────────────────────────────────────────────────────────
 func getJSON(url string, target any) error {
@@ -477,6 +484,7 @@ func readTimeout(parent context.Context, c *websocket.Conn, v any, d time.Durati
 func announceOnce(parent context.Context) error {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
+	defer wsConnected.Store(false) // qualquer saída desta função = WS caiu
 
 	c, _, err := websocket.Dial(ctx, wsURL(), nil)
 	if err != nil {
@@ -515,6 +523,7 @@ func announceOnce(parent context.Context) error {
 		return err
 	}
 	log.Printf("[announcer] ouvindo %s", triggerBool)
+	wsConnected.Store(true) // autenticado e inscrito -> pronto
 
 	// pinger: detecta conexão morta e força reconexão
 	go func() {
@@ -589,6 +598,20 @@ func main() {
 
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": true, "announcer": haToken != ""})
+	})
+	// /ready = readiness: 200 só quando o WS com o HA está vivo. Pega a
+	// desconexão silenciosa do announcer (o /healthz não enxerga isso).
+	http.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
+		connected := wsConnected.Load()
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		if connected {
+			w.WriteHeader(http.StatusOK)
+		} else {
+			w.WriteHeader(http.StatusServiceUnavailable) // 503 -> uptime-kuma marca DOWN
+		}
+		enc := json.NewEncoder(w)
+		enc.SetEscapeHTML(false)
+		enc.Encode(map[string]any{"ready": connected, "ha_connected": connected, "announcer_enabled": haToken != ""})
 	})
 	http.HandleFunc("/overhead", func(w http.ResponseWriter, r *http.Request) {
 		mode := r.URL.Query().Get("mode")
